@@ -507,6 +507,120 @@ metric = (owasp_tested/10)*50 + (stride_tested/6)*30 + min(findings, 20)
 - **Max theoretical:** 100
 - Incentivizes covering ALL categories before going deep on any one
 
+### Flags
+
+| Flag | Purpose | Example |
+|------|---------|---------|
+| `--diff` | Only audit files changed since last audit | `/autoresearch:security --diff` |
+| `--fix` | Auto-fix confirmed Critical/High after audit | `/autoresearch:security --fix` |
+| `--fail-on` | Exit non-zero if severity threshold met | `--fail-on critical` |
+
+Flags combine: `/loop 15 /autoresearch:security --diff --fix --fail-on critical`
+
+**Execution order:** `--diff` narrows scope → audit runs → `--fix` remediates → `--fail-on` gates remaining findings.
+
+### Delta Mode (`--diff`)
+
+Only audits files changed since the last security audit. Reads the most recent `security/` subfolder for baseline.
+
+```
+/autoresearch:security --diff
+```
+
+Output includes a delta summary:
+
+```
+## Delta Summary (vs 260310-1430-stride-owasp-full-audit)
+
+| Status | Count |
+|--------|-------|
+| New findings | 3 |
+| Fixed | 2 |
+| Recurring | 5 |
+| Files changed | 12 |
+```
+
+### Auto-Fix Mode (`--fix`)
+
+After the audit completes, switches to standard autoresearch modify→verify loop to fix confirmed findings:
+
+```
+/loop 15 /autoresearch:security --fix
+```
+
+- Only fixes **Confirmed Critical and High** findings
+- Uses mitigations from `recommendations.md` as guidance
+- Commits each fix, verifies the vulnerability is gone, reverts if tests break
+- Maximum 3 attempts per finding, then skips
+- Creates `fix-log.md` in the audit folder
+
+### CI/CD Gate (`--fail-on`)
+
+Exits non-zero if findings meet severity threshold — designed for pipeline blocking:
+
+```
+/loop 10 /autoresearch:security --fail-on critical
+```
+
+| Value | Blocks on |
+|-------|-----------|
+| `critical` | Any Critical finding |
+| `high` | Any Critical or High |
+| `medium` | Any Critical, High, or Medium |
+
+### CI/CD GitHub Action (Auto-Generated)
+
+When a `.github/workflows/` directory is detected, the wizard offers to generate a security audit workflow:
+
+```yaml
+# .github/workflows/security-audit.yml (auto-generated)
+name: Security Audit
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly Monday 2am
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Security Audit
+        run: |
+          # Delta on PRs, full on schedule
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            claude -p "/loop 5 /autoresearch:security --diff --fail-on critical"
+          else
+            claude -p "/loop 15 /autoresearch:security --fail-on high"
+          fi
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security/
+```
+
+### Historical Comparison
+
+When previous audits exist in `security/`, the current run auto-generates a comparison:
+
+```
+## Historical Comparison (vs 260310 audit)
+
+| Metric | Previous | Current | Change |
+|--------|----------|---------|--------|
+| Critical | 3 | 1 | ↓ -2 |
+| High | 4 | 5 | ↑ +1 |
+| Total | 9 | 9 | → 0 |
+| OWASP coverage | 6/10 | 8/10 | ↑ +2 |
+
+Finding Status:
+  Fixed: 4 | New: 4 | Recurring: 5
+```
+
+Each finding in `findings.md` gets tagged: 🆕 New, 🔄 Recurring, or ✅ Fixed.
+
 ### When to Use
 
 | Scenario | Recommendation |
@@ -514,9 +628,11 @@ metric = (owasp_tested/10)*50 + (stride_tested/6)*30 + min(findings, 20)
 | Before a major release | `/loop 15 /autoresearch:security` |
 | Quick sanity check | `/loop 5 /autoresearch:security` |
 | Comprehensive overnight audit | `/autoresearch:security` (unlimited) |
-| CI/CD security gate | `/loop 10 /autoresearch:security` |
-| After adding auth/API changes | `/autoresearch:security` with scoped focus |
+| CI/CD security gate | `/loop 10 /autoresearch:security --fail-on critical` |
+| PR review (changed files only) | `/loop 5 /autoresearch:security --diff` |
+| After adding auth/API changes | `/autoresearch:security --diff --fix` |
 | Compliance preparation | `/loop 20 /autoresearch:security` (max coverage) |
+| Track security posture over time | Run weekly, review historical comparison |
 
 ---
 

@@ -498,6 +498,276 @@ metric = (owasp_categories_tested / 10) * 50 + (stride_categories_tested / 6) * 
 
 This incentivizes the loop to cover ALL categories before going deep on any one.
 
+## Flags & Modes
+
+### `--diff` — Delta Mode (v1.0.3)
+
+Only audit files changed since the last audit. Reads the most recent `security/` subfolder to establish what was already tested.
+
+```
+/autoresearch:security --diff
+```
+
+**How it works:**
+
+1. Find the latest `security/*/overview.md` by timestamp in folder name
+2. Parse `findings.md` from that folder to get previously tested files
+3. Run `git diff --name-only {last_audit_commit}..HEAD` to find changed files
+4. Scope the current audit to ONLY those changed files
+5. In the final report, mark findings as:
+   - **New** — found in changed files, not in previous audit
+   - **Fixed** — was in previous audit, no longer present in changed code
+   - **Recurring** — still present from previous audit (unchanged)
+
+**Delta report additions:**
+
+The overview.md gains a `## Delta Summary` section:
+
+```markdown
+## Delta Summary (vs {previous_audit_folder})
+
+| Status | Count | Details |
+|--------|-------|---------|
+| New findings | 3 | Found in changed files |
+| Fixed | 2 | No longer present |
+| Recurring | 5 | Still present from last audit |
+| Files changed | 12 | Since last audit |
+| Files audited | 8 | (security-relevant subset) |
+```
+
+If no previous audit folder exists, `--diff` falls back to full audit with a warning.
+
+### `--fail-on` — Severity Threshold Gate (v1.0.3)
+
+Exit with non-zero code if findings meet or exceed a severity threshold. Designed for CI/CD blocking.
+
+```
+/autoresearch:security --fail-on critical
+/autoresearch:security --fail-on high
+/autoresearch:security --fail-on medium
+```
+
+| Flag Value | Blocks on |
+|------------|-----------|
+| `critical` | Any Critical finding |
+| `high` | Any Critical or High finding |
+| `medium` | Any Critical, High, or Medium finding |
+
+**Behavior:**
+- Runs the full audit normally
+- After generating the report, checks findings against threshold
+- If threshold met: prints `SECURITY GATE FAILED: {N} findings at {severity} or above` and exits non-zero
+- If threshold not met: prints `SECURITY GATE PASSED` and exits 0
+
+**CI/CD usage:**
+```bash
+# In GitHub Actions or CI scripts
+/loop 10 /autoresearch:security --fail-on critical
+# Exit code 1 if any Critical findings → blocks the pipeline
+```
+
+### `--fix` — Auto-Remediation Mode (v1.0.3)
+
+After completing the audit, switches to standard autoresearch modify→verify loop to fix confirmed findings. Uses the security audit report as its goal.
+
+```
+/autoresearch:security --fix
+/loop 10 /autoresearch:security --fix
+```
+
+**How it works:**
+
+1. Run the full security audit (setup + loop + report)
+2. Filter findings: only **Confirmed** severity **Critical** and **High**
+3. Switch to standard autoresearch loop:
+   - **Goal:** Fix all confirmed Critical and High findings
+   - **Scope:** Files referenced in findings (file:line locations)
+   - **Metric:** Count of remaining confirmed findings (lower is better)
+   - **Verify:** Re-run the security checks that found each vulnerability
+4. For each fix iteration:
+   - Pick the highest-severity unfixed finding
+   - Apply the mitigation from `recommendations.md`
+   - Commit the fix
+   - Re-verify: does the vulnerability still exist?
+   - If fixed → keep commit, mark finding as "Fixed" in report
+   - If still vulnerable → revert, try different approach
+   - If new findings introduced → revert immediately
+
+**Fix report additions:**
+
+After fixes complete, updates the audit folder:
+- `findings.md` gains a `Status` column: `Open` / `Fixed` / `Fix attempted`
+- `recommendations.md` gains checkmarks on applied fixes
+- New file: `fix-log.md` with iteration details
+
+**Safety rules:**
+- NEVER fix Low or Info findings automatically (too subjective)
+- NEVER modify test files (fixes must not break existing tests)
+- Run existing tests after each fix — revert if any test fails
+- Maximum 3 fix attempts per finding, then skip
+- User can combine with `--fail-on` for gated fix: fix first, then gate
+
+### Combining Flags
+
+Flags can be combined:
+
+```
+# Delta audit + auto-fix critical/high + block on remaining criticals
+/loop 15 /autoresearch:security --diff --fix --fail-on critical
+
+# Quick delta check in CI
+/loop 5 /autoresearch:security --diff --fail-on high
+```
+
+**Execution order when combined:**
+1. `--diff` narrows scope
+2. Security audit runs (with narrowed scope if `--diff`)
+3. `--fix` runs remediation loop on confirmed Critical/High
+4. `--fail-on` checks remaining (unfixed) findings against threshold
+
+### CI/CD GitHub Action Template
+
+When `/autoresearch:security` detects a `.github/workflows/` directory, it offers to generate a security workflow:
+
+```
+AskUserQuestion:
+  question: "I see you use GitHub Actions. Want me to generate a security audit workflow?"
+  header: "CI/CD"
+  options:
+    - label: "Yes, generate it (Recommended)"
+      description: "Creates .github/workflows/security-audit.yml"
+    - label: "No, skip"
+      description: "Continue without CI/CD setup"
+```
+
+**Generated workflow:** `.github/workflows/security-audit.yml`
+
+```yaml
+name: Security Audit
+
+on:
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly Monday 2am UTC
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for delta mode
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install Autoresearch Skill
+        run: |
+          git clone https://github.com/uditgoenka/autoresearch.git /tmp/autoresearch
+          cp -r /tmp/autoresearch/skills/autoresearch .claude/skills/autoresearch
+
+      - name: Run Security Audit
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Delta mode on PRs, full audit on schedule
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            claude -p "/loop 5 /autoresearch:security --diff --fail-on critical"
+          else
+            claude -p "/loop 15 /autoresearch:security --fail-on high"
+          fi
+
+      - name: Upload Security Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: security/
+          retention-days: 90
+
+      - name: Comment PR with Summary
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const glob = require('glob');
+            const overviews = glob.sync('security/*/overview.md');
+            if (overviews.length > 0) {
+              const latest = overviews.sort().pop();
+              const content = fs.readFileSync(latest, 'utf-8');
+              const summary = content.split('## Summary')[1]?.split('##')[0] || 'See full report in artifacts.';
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `## 🔒 Security Audit Results\n\n${summary}\n\n> Full report available in workflow artifacts.`
+              });
+            }
+```
+
+**The template is generated ONCE** — after initial creation, it's the user's file to customize.
+
+### Historical Comparison
+
+When a previous audit exists in `security/`, the current run automatically generates a comparison section.
+
+**Detection:** At setup, scan `security/` for existing audit folders sorted by date.
+
+**Comparison logic:**
+
+```
+For each finding in current audit:
+  Search previous audit findings.md for same location (file:line) or same description
+  If found → mark as "Recurring"
+  If not found → mark as "New"
+
+For each finding in previous audit:
+  Search current audit findings for same location or description
+  If not found → mark as "Fixed"
+```
+
+**Output in overview.md:**
+
+```markdown
+## Historical Comparison
+
+**Previous audit:** security/260310-1430-stride-owasp-full-audit/ (5 days ago)
+
+### Trend
+| Metric | Previous | Current | Change |
+|--------|----------|---------|--------|
+| Critical | 3 | 1 | ↓ -2 (improved) |
+| High | 4 | 5 | ↑ +1 (regressed) |
+| Medium | 2 | 3 | ↑ +1 |
+| Total | 9 | 9 | → 0 |
+| OWASP coverage | 6/10 | 8/10 | ↑ +2 |
+| STRIDE coverage | 4/6 | 5/6 | ↑ +1 |
+
+### Finding Status
+| Status | Count | Details |
+|--------|-------|---------|
+| Fixed since last audit | 4 | JWT algo, CORS, 2 XSS |
+| New findings | 4 | SSRF, rate limit, 2 IDOR |
+| Recurring (unfixed) | 5 | See findings.md |
+
+### Regression Alert
+⚠️ 4 new findings detected since last audit. Review [findings.md](./findings.md) for details.
+```
+
+**findings.md additions:**
+
+Each finding gets a `History` tag:
+- `🆕 New` — first time detected
+- `🔄 Recurring` — present in previous audit too
+- `✅ Fixed` (only in previous audit's context) — no longer present
+
 ## Error Recovery
 
 | Error | Recovery |

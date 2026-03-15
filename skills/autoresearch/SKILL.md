@@ -42,6 +42,14 @@ Load: `references/security-workflow.md` for full protocol.
 - Creates `security/{YYMMDD}-{HHMM}-{audit-slug}/` folder with structured reports:
   `overview.md`, `threat-model.md`, `attack-surface-map.md`, `findings.md`, `owasp-coverage.md`, `dependency-audit.md`, `recommendations.md`, `security-audit-results.tsv`
 
+**Flags:**
+
+| Flag | Purpose |
+|------|---------|
+| `--diff` | Delta mode — only audit files changed since last audit |
+| `--fix` | After audit, auto-fix confirmed Critical/High findings using autoresearch loop |
+| `--fail-on {severity}` | Exit non-zero if findings meet threshold (for CI/CD gating) |
+
 **Usage:**
 ```
 # Unlimited — keep finding vulnerabilities until interrupted
@@ -54,6 +62,18 @@ Load: `references/security-workflow.md` for full protocol.
 /autoresearch:security
 Scope: src/api/**/*.ts, src/middleware/**/*.ts
 Focus: authentication and authorization flows
+
+# Delta mode — only audit changed files since last audit
+/autoresearch:security --diff
+
+# Auto-fix confirmed Critical/High findings after audit
+/loop 15 /autoresearch:security --fix
+
+# CI/CD gate — fail pipeline if any Critical findings
+/loop 10 /autoresearch:security --fail-on critical
+
+# Combined — delta audit + fix + gate
+/loop 15 /autoresearch:security --diff --fix --fail-on critical
 ```
 
 **Inspired by:**
