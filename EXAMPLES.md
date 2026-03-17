@@ -2,7 +2,7 @@
 
 Real-world examples organized by domain, with practical configurations you can copy-paste.
 
-[Software Engineering](#software-engineering) · [Sales](#sales) · [Marketing](#marketing) · [HR & People Ops](#hr--people-ops) · [Operations](#operations) · [Performance Marketing](#performance-marketing) · [Data Science](#data-science) · [DevOps](#devops) · [Design & Accessibility](#design--accessibility) · [Debug Examples](#debug-examples) · [Fix Examples](#fix-examples) · [Scenario Examples](#scenario-examples) · [MCP Servers](#combining-with-mcp-servers) · [API Patterns](#combining-with-apis) · [Claude Code Patterns](#claude-code-patterns) · [Plan Wizard Examples](#plan-wizard-examples) · [Security Audit Examples](#security-audit-examples) · [Ship Workflow Examples](#ship-workflow-examples) · [Verification Scripts](#writing-verification-scripts) · [Core Principles](#core-principles)
+[Software Engineering](#software-engineering) · [Python & Django](#python--django) · [Go](#go) · [Rust](#rust) · [Sales & Lead Generation](#sales--lead-generation) · [Marketing](#marketing) · [HR & People Ops](#hr--people-ops) · [Operations](#operations) · [Performance Marketing](#performance-marketing) · [Data Science](#data-science) · [DevOps](#devops) · [Web Scraping & Data Collection](#web-scraping--data-collection) · [Research & Analysis](#research--analysis) · [Design & Accessibility](#design--accessibility) · [Debug Examples](#debug-examples) · [Fix Examples](#fix-examples) · [Scenario Examples](#scenario-examples) · [Command Chains](#command-chains) · [Guard Patterns](#guard-patterns) · [MCP Servers](#combining-with-mcp-servers) · [API Patterns](#combining-with-apis) · [Claude Code Patterns](#claude-code-patterns) · [Plan Wizard Examples](#plan-wizard-examples) · [Security Audit Examples](#security-audit-examples) · [Ship Workflow Examples](#ship-workflow-examples) · [Verification Scripts](#writing-verification-scripts) · [Core Principles](#core-principles)
 
 ---
 
@@ -99,7 +99,157 @@ Verify: npm test && find src/services -name "*.ts" | xargs wc -l | tail -1
 
 ---
 
-## Sales
+## Python & Django
+
+### Increase pytest coverage
+
+```
+/autoresearch
+Iterations: 30
+Goal: Increase pytest coverage from 68% to 90%
+Scope: tests/**/*.py, app/**/*.py
+Metric: coverage % (higher is better)
+Verify: pytest --cov=app --cov-report=term-missing 2>&1 | grep "TOTAL" | awk '{print $4}'
+```
+
+### Reduce Django query count (N+1)
+
+```
+/autoresearch
+Iterations: 15
+Goal: Eliminate N+1 queries — reduce total DB queries per request
+Scope: app/views/**/*.py, app/models/**/*.py
+Metric: total query count per request (lower is better)
+Verify: python manage.py test --settings=settings.test 2>&1 | grep "queries" | awk '{print $1}'
+Guard: pytest
+```
+
+### Fix mypy type errors
+
+```
+/autoresearch:fix --target "mypy app/ --strict"
+Guard: pytest
+Iterations: 25
+```
+
+### FastAPI response time
+
+```
+/autoresearch
+Iterations: 20
+Goal: Reduce p95 response time to under 50ms
+Scope: app/routers/**/*.py, app/services/**/*.py
+Metric: p95 response time in ms (lower is better)
+Verify: python scripts/bench_api.py | grep "p95"
+Guard: pytest
+```
+
+### Flask security audit
+
+```
+/autoresearch:security
+Scope: app/**/*.py, config/**/*.py
+Focus: SQL injection, CSRF, session management, secret handling
+Iterations: 15
+```
+
+---
+
+## Go
+
+### Increase Go test coverage
+
+```
+/autoresearch
+Iterations: 25
+Goal: Increase test coverage to 85%
+Scope: **/*.go
+Metric: coverage % (higher is better)
+Verify: go test ./... -coverprofile=cover.out && go tool cover -func=cover.out | grep "total:" | awk '{print $3}'
+```
+
+### Reduce Go binary size
+
+```
+/autoresearch
+Iterations: 10
+Goal: Reduce compiled binary size
+Scope: cmd/**/*.go, internal/**/*.go
+Metric: binary size in MB (lower is better)
+Verify: go build -o /tmp/bench ./cmd/server && ls -la /tmp/bench | awk '{print $5/1048576}'
+Guard: go test ./...
+```
+
+### Fix Go vet + staticcheck errors
+
+```
+/autoresearch:fix --target "go vet ./... && staticcheck ./..."
+Guard: go test ./...
+Iterations: 15
+```
+
+### Go benchmark optimization
+
+```
+/autoresearch
+Iterations: 20
+Goal: Improve hot-path benchmark by 2x
+Scope: internal/parser/**/*.go
+Metric: ns/op from benchmark (lower is better)
+Verify: go test -bench=BenchmarkParse -benchmem ./internal/parser/ | grep "BenchmarkParse" | awk '{print $3}'
+Guard: go test ./...
+```
+
+---
+
+## Rust
+
+### Increase Rust test coverage
+
+```
+/autoresearch
+Iterations: 20
+Goal: Increase test coverage to 80%
+Scope: src/**/*.rs
+Metric: coverage % (higher is better)
+Verify: cargo tarpaulin --out Stdout 2>&1 | grep "coverage" | awk '{print $2}'
+```
+
+### Reduce compile time
+
+```
+/autoresearch
+Iterations: 15
+Goal: Reduce incremental compile time
+Scope: src/**/*.rs, Cargo.toml
+Metric: compile time in seconds (lower is better)
+Verify: cargo build --timings 2>&1 | grep "Finished" | awk '{print $2}'
+Guard: cargo test
+```
+
+### Fix clippy warnings
+
+```
+/autoresearch:fix --target "cargo clippy -- -D warnings"
+Guard: cargo test
+Iterations: 20
+```
+
+### Rust benchmark optimization
+
+```
+/autoresearch
+Iterations: 25
+Goal: Reduce p95 request handling time
+Scope: src/handlers/**/*.rs
+Metric: ns/iter from criterion (lower is better)
+Verify: cargo bench -- --output-format bencher 2>&1 | grep "bench:" | awk '{print $5}'
+Guard: cargo test
+```
+
+---
+
+## Sales & Lead Generation
 
 ### Cold email optimization
 
@@ -134,6 +284,59 @@ Goal: Cover all 20 common objections with responses under 50 words each
 Scope: content/objection-responses.md
 Metric: objections covered + avg word count per response (more covered + fewer words = better)
 Verify: node scripts/score-objections.js
+```
+
+### Lead magnet optimization
+
+```
+/autoresearch
+Iterations: 20
+Goal: Improve lead magnet download page conversion score
+Scope: content/lead-magnets/**/*.md, content/landing-pages/lead-magnet.md
+Metric: conversion checklist score (higher is better)
+Verify: node scripts/lead-magnet-score.js
+```
+
+Claude iterates on headline, value proposition, form fields, social proof, urgency elements — one change per iteration.
+
+### LinkedIn outreach sequences
+
+```
+/autoresearch
+Iterations: 25
+Goal: Improve LinkedIn outreach sequence — personalization, hook quality, CTA clarity
+Scope: content/outreach/linkedin-sequence/*.md
+Metric: sequence quality score (higher is better)
+Verify: node scripts/outreach-scorer.js --platform linkedin
+```
+
+### Lead scoring model refinement
+
+```
+/autoresearch
+Iterations: 15
+Goal: Improve lead scoring accuracy — reduce false positive rate
+Scope: scripts/lead-scoring/*.py
+Metric: false positive rate (lower is better)
+Verify: python scripts/evaluate-lead-scoring.py | grep "false_positive_rate"
+Guard: python -m pytest tests/scoring/
+```
+
+### Ship a sales proposal
+
+```
+/autoresearch:ship --type sales
+Target: proposals/enterprise-q1.md
+```
+
+Checklist: prospect name correct, pricing current, CTA clear, case studies current, branding consistent.
+
+### Generate sales scenarios
+
+```
+/autoresearch:scenario --domain business --depth deep
+Scenario: Enterprise customer evaluates our SaaS during procurement with 5 stakeholders
+Iterations: 30
 ```
 
 ---
@@ -423,6 +626,132 @@ Verify: tfsec . --format json | jq '.results | length'
 
 ---
 
+## Web Scraping & Data Collection
+
+### Improve scraper success rate
+
+```
+/autoresearch
+Iterations: 25
+Goal: Increase scraper success rate from 85% to 99%
+Scope: scrapers/**/*.py
+Metric: success rate % (higher is better)
+Verify: python scripts/scraper-test.py --sample 100 | grep "success_rate"
+Guard: python -m pytest tests/scrapers/
+```
+
+Claude iterates on retry logic, selector resilience, timeout handling, rate limiting — one improvement per iteration.
+
+### Reduce scraping time per page
+
+```
+/autoresearch
+Iterations: 20
+Goal: Reduce average scrape time from 3s to under 1s per page
+Scope: scrapers/**/*.py
+Metric: avg time per page in seconds (lower is better)
+Verify: python scripts/scraper-bench.py | grep "avg_time"
+Guard: python -m pytest tests/scrapers/
+```
+
+### Handle anti-bot measures
+
+```
+/autoresearch
+Iterations: 15
+Goal: Pass Cloudflare/anti-bot detection on target sites
+Scope: scrapers/browser/**/*.py
+Metric: blocked request rate (lower is better)
+Verify: python scripts/test-antibot.py | grep "block_rate"
+```
+
+### Improve data extraction accuracy
+
+```
+/autoresearch
+Iterations: 20
+Goal: Increase structured data extraction accuracy to 98%
+Scope: scrapers/extractors/**/*.py
+Metric: extraction accuracy % (higher is better)
+Verify: python scripts/extraction-accuracy.py --ground-truth fixtures/expected.json | grep "accuracy"
+Guard: python -m pytest tests/extractors/
+```
+
+### Debug scraper failures
+
+```
+/autoresearch:debug
+Scope: scrapers/**/*.py
+Symptom: Scraper fails on paginated results after page 5 with 403 errors
+Iterations: 10
+```
+
+### Explore scraping edge cases
+
+```
+/autoresearch:scenario --domain software --focus edge-cases
+Scenario: Web scraper encounters anti-bot measures, dynamic content, and rate limiting
+Iterations: 25
+```
+
+Explores: CAPTCHAs, IP blocking, JavaScript rendering, infinite scroll, login walls, A/B test variants, geo-blocking, cookie consent popups.
+
+---
+
+## Research & Analysis
+
+### Improve research paper readability
+
+```
+/autoresearch
+Iterations: 20
+Goal: Improve research paper Flesch readability score to 60+
+Scope: papers/draft/**/*.md
+Metric: Flesch readability score (higher is better)
+Verify: python scripts/readability.py papers/draft/ | grep "flesch_score"
+```
+
+### Systematic literature review structure
+
+```
+/autoresearch
+Iterations: 15
+Goal: Ensure all literature review sections follow PRISMA checklist
+Scope: papers/lit-review/**/*.md
+Metric: PRISMA checklist compliance % (higher is better)
+Verify: python scripts/prisma-check.py | grep "compliance"
+```
+
+### Data analysis report quality
+
+```
+/autoresearch
+Iterations: 20
+Goal: Ensure all analysis reports have methodology, data sources, visualizations, and conclusions
+Scope: reports/analysis/**/*.md
+Metric: report completeness score (higher is better)
+Verify: python scripts/report-audit.py | grep "completeness"
+```
+
+### Ship a research paper
+
+```
+/autoresearch:ship --type research
+Target: papers/final/autonomous-iteration-patterns.pdf
+```
+
+Checklist: abstract present, citations formatted, data sources linked, methodology complete, figures labeled, conclusion addresses hypothesis, acknowledgments included.
+
+### Research scenario exploration
+
+```
+/autoresearch:scenario --domain product --format use-cases --depth deep
+Scenario: Researcher evaluates autonomous iteration techniques across ML, DevOps, and content
+Iterations: 30
+```
+
+---
+
 ## Design & Accessibility
 
 ### Accessibility audit
@@ -631,6 +960,236 @@ Target: npm test
 Guard: tsc --noEmit
 Scope: src/**/*.ts
 ```
+
+---
+
+## Command Chains
+
+Chain commands together for powerful multi-step workflows. Each command's output feeds the next.
+
+### Debug → Fix (find and repair)
+
+```bash
+# Step 1: Find all bugs
+/autoresearch:debug
+Scope: src/**/*.ts
+Iterations: 15
+
+# Step 2: Fix what was found
+/autoresearch:fix --from-debug
+Guard: npm test
+Iterations: 30
+
+# Or use the shortcut:
+/autoresearch:debug --fix
+Iterations: 30
+```
+
+### Plan → Loop → Ship (full improvement cycle)
+
+```bash
+# Step 1: Figure out the right config
+/autoresearch:plan
+Goal: Reduce API response times
+
+# Step 2: Run the loop (plan wizard gives you the exact config)
+/autoresearch
+Iterations: 50
+Goal: Reduce p95 API response time to under 100ms
+Scope: src/api/**/*.ts
+Metric: p95 latency in ms (lower is better)
+Verify: npm run bench:api | grep "p95"
+Guard: npm test
+
+# Step 3: Ship it
+/autoresearch:ship --type code-pr --auto
+```
+
+### Security → Fix → Verify (pre-release hardening)
+
+```bash
+# Step 1: Find vulnerabilities
+/autoresearch:security
+Scope: src/**/*.ts
+Iterations: 15
+
+# Step 2: Fix Critical/High findings
+/autoresearch:fix --from-debug
+Guard: npm test
+Iterations: 20
+
+# Step 3: Re-audit to confirm fixes landed
+/autoresearch:security --diff
+Iterations: 10
+
+# Step 4: Ship when clean
+/autoresearch:ship --type code-release
+
+# Or combined shortcut:
+/autoresearch:security --fix --fail-on critical
+Iterations: 25
+```
+
+### Scenario → Debug → Fix (edge case hardening)
+
+```bash
+# Step 1: Discover edge cases
+/autoresearch:scenario --domain software --focus edge-cases
+Scenario: User uploads files through drag-and-drop
+Iterations: 25
+
+# Step 2: Hunt bugs in discovered edge cases
+/autoresearch:debug
+Scope: src/upload/**/*.ts
+Symptom: Edge cases from scenario — concurrent uploads, large files, network drops
+Iterations: 15
+
+# Step 3: Fix everything found
+/autoresearch:fix --from-debug
+Guard: npm test
+Iterations: 20
+```
+
+### Scenario → Security (threat modeling)
+
+```bash
+# Step 1: Explore attack scenarios
+/autoresearch:scenario --domain security --depth deep
+Scenario: Authenticated user attempts privilege escalation via API
+Iterations: 30
+
+# Step 2: Audit the discovered attack vectors
+/autoresearch:security
+Scope: src/api/**/*.ts, src/middleware/**/*.ts
+Focus: Privilege escalation, IDOR, access control
+Iterations: 15
+```
+
+### Fix → Loop → Ship (stabilize then improve then deploy)
+
+```bash
+# Step 1: Fix blockers
+/autoresearch:fix
+Target: npm run build && npm test
+Iterations: 20
+
+# Step 2: Improve
+/autoresearch
+Iterations: 30
+Goal: Increase test coverage to 90%
+Scope: src/**/*.ts
+Verify: npm test -- --coverage | grep "All files"
+
+# Step 3: Deploy
+/autoresearch:ship --type deployment --monitor 10
+```
+
+### Full Development Lifecycle
+
+```bash
+# 1. Explore scenarios and edge cases
+/autoresearch:scenario --domain software --depth deep
+Scenario: New payment processing feature
+Iterations: 30
+
+# 2. Plan the implementation
+/autoresearch:plan
+Goal: Payment module with 95%+ test coverage
+
+# 3. Build iteratively
+/autoresearch
+Iterations: 50
+Goal: Payment module test coverage to 95%
+Scope: src/payments/**/*.ts
+Verify: npm test -- --coverage --collectCoverageFrom='src/payments/**' | grep "All files"
+
+# 4. Security audit
+/autoresearch:security
+Scope: src/payments/**/*.ts
+Focus: PCI DSS, encryption, input validation
+Iterations: 15
+
+# 5. Fix findings
+/autoresearch:fix --from-debug
+Guard: npm test
+Iterations: 20
+
+# 6. Ship
+/autoresearch:ship --type code-pr
+```
+
+### Chain quick reference
+
+| Chain | When to Use |
+|-------|-------------|
+| `debug → fix` | Bug known, needs finding and fixing |
+| `plan → loop` | Starting new metric improvement |
+| `plan → loop → ship` | Full improvement → deploy cycle |
+| `security → fix → security` | Harden, fix, verify fixes |
+| `scenario → debug → fix` | Edge case discovery → bug hunt → repair |
+| `scenario → security` | Threat modeling from user scenarios |
+| `fix → loop → ship` | Stabilize → improve → deploy |
+| `loop → ship` | Optimization done, time to deploy |
+| `debug → fix → ship` | Production issue: find, fix, deploy |
+| `plan → loop → security → ship` | Full feature lifecycle |
+
+---
+
+## Guard Patterns
+
+Guards prevent regressions while optimizing a different metric. Use Guard when your metric is NOT your test suite.
+
+### Bundle size + tests
+
+```
+/autoresearch
+Goal: Reduce bundle size below 200KB
+Verify: npm run build 2>&1 | grep "gzipped"
+Guard: npm test
+```
+
+### Performance + types + tests
+
+```
+/autoresearch
+Goal: Reduce p95 response time to under 100ms
+Verify: npm run bench:api | grep "p95"
+Guard: tsc --noEmit && npm test
+```
+
+### Lighthouse + e2e tests
+
+```
+/autoresearch
+Goal: Lighthouse performance score 95+
+Verify: npx lighthouse http://localhost:3000 --output=json --quiet | jq '.categories.performance.score * 100'
+Guard: npx playwright test
+```
+
+### Python coverage + mypy
+
+```
+/autoresearch
+Goal: Increase pytest coverage to 90%
+Verify: pytest --cov=app 2>&1 | grep "TOTAL" | awk '{print $4}'
+Guard: mypy app/ --strict
+```
+
+### Refactoring + all checks
+
+```
+/autoresearch
+Goal: Reduce LOC by 30% in services module
+Verify: wc -l src/services/**/*.ts | tail -1
+Guard: npm test && tsc --noEmit && npx eslint src/
+```
+
+### How guard recovery works
+
+1. Metric improves but guard fails → Claude reverts
+2. Reads guard output to understand what broke
+3. Reworks the optimization to avoid the regression (max 2 attempts)
+4. If 2 attempts fail → discard and move on
 
 ---
 
@@ -1465,13 +2024,20 @@ If the agent hits a wall (missing permissions, external dependency, needs human 
 
 | Domain | Metric | Scope | Verify Command | Guard |
 |--------|--------|-------|----------------|-------|
-| Backend code | Tests pass + coverage % | `src/**/*.ts` | `npm test` | — |
+| Node.js/TS backend | Tests pass + coverage % | `src/**/*.ts` | `npm test -- --coverage` | — |
+| Python backend | pytest coverage % | `app/**/*.py` | `pytest --cov=app` | `mypy app/` |
+| Go backend | Test coverage % | `**/*.go` | `go test ./... -cover` | `go vet ./...` |
+| Rust backend | Test coverage % | `src/**/*.rs` | `cargo tarpaulin` | `cargo clippy` |
 | Frontend UI | Lighthouse score | `src/components/**` | `npx lighthouse` | `npm test` |
 | ML training | val_bpb / loss | `train.py` | `uv run train.py` | — |
 | Blog/content | Word count + readability | `content/*.md` | Custom script | — |
 | Performance | Benchmark time (ms) | Target files | `npm run bench` | `npm test` |
 | Refactoring | Tests pass + LOC reduced | Target module | `npm test && wc -l` | `npm run typecheck` |
+| Web scraping | Success rate % | `scrapers/**/*.py` | Custom test script | `pytest tests/scrapers/` |
 | Security | OWASP + STRIDE coverage | API/auth/middleware | `/autoresearch:security` | — |
+| Debugging | Bugs found + coverage | Target files | `/autoresearch:debug` | — |
+| Fixing | Error count (lower) | Target files | `/autoresearch:fix` | `npm test` |
+| Scenarios | Use cases + edge cases | Feature files | `/autoresearch:scenario` | — |
 | Shipping | Checklist pass rate (%) | Any artifact | `/autoresearch:ship` | Domain-specific |
 
 Adapt the loop to your domain. The **principles** are universal; the **metrics** are domain-specific.
